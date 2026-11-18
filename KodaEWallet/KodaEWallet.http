@@ -1,0 +1,138 @@
+### Koda E-Wallet Weekly 6 - REST Client (VS Code extension "REST Client")
+### Data seed (database baru): user Id 1-10 (Andi..Joko), wallet WAL001..WAL010,
+### top up PENDING milik Fitri (user 6) = TopUpRequestId 5.
+
+@host = http://localhost:5063
+
+### 1. Metode pembayaran aktif
+GET {{host}}/api/v1/payment-methods
+
+### 2. Info wallet Andi (saldo awal seed Rp800.000)
+GET {{host}}/api/v1/wallets/1
+
+### 3. Buat user baru -> wallet ACTIVE saldo 0 otomatis
+POST {{host}}/api/v1/users
+Content-Type: application/json
+
+{
+	"username": "kevin",
+	"fullName": "Kevin",
+	"email": "kevin@mail.com",
+	"phone": "081200000011"
+}
+
+### 4. Buat user duplikat (username/email/phone sama) -> 409
+POST {{host}}/api/v1/users
+Content-Type: application/json
+
+{
+	"username": "kevin",
+	"fullName": "Kevin Lagi",
+	"email": "kevin2@mail.com",
+	"phone": "081200000099"
+}
+
+### 5. Ajukan top up Andi -> PENDING, saldo belum berubah (catat topUpRequestId)
+POST {{host}}/api/v1/wallets/1/topups
+Content-Type: application/json
+
+{
+	"amount": 100000,
+	"paymentMethodCode": "BANK_TRANSFER",
+	"description": "Top up uji"
+}
+
+### 6. Saldo Andi masih sama (belum berubah)
+GET {{host}}/api/v1/wallets/1
+
+### 7. Konfirmasi pembayaran (ganti 5 dengan topUpRequestId dari langkah 5) -> PAID/SUCCESS, saldo naik
+POST {{host}}/api/v1/topups/5/confirm
+
+### 8. Konfirmasi ulang top up yang sama -> 409 (tidak boleh diproses ulang)
+POST {{host}}/api/v1/topups/5/confirm
+
+### 9. Transfer Andi -> Budi (WAL002) berhasil
+POST {{host}}/api/v1/transfers
+Content-Type: application/json
+
+{
+	"senderUserId": 1,
+	"receiverWalletNumber": "WAL002",
+	"amount": 50000,
+	"description": "Uji transfer"
+}
+
+### 10. Transfer melebihi saldo -> 422 + audit TRANSFER_REJECTED, saldo tidak berubah (ROLLBACK / ditolak)
+POST {{host}}/api/v1/transfers
+Content-Type: application/json
+
+{
+	"senderUserId": 1,
+	"receiverWalletNumber": "WAL002",
+	"amount": 999000000,
+	"description": "Terlalu besar"
+}
+
+### 11. Transfer ke wallet tidak ada -> 404 + audit REJECTED
+POST {{host}}/api/v1/transfers
+Content-Type: application/json
+
+{
+	"senderUserId": 1,
+	"receiverWalletNumber": "WAL999",
+	"amount": 10000
+}
+
+### 12. Transfer ke diri sendiri -> 400 + audit REJECTED
+POST {{host}}/api/v1/transfers
+Content-Type: application/json
+
+{
+	"senderUserId": 1,
+	"receiverWalletNumber": "WAL001",
+	"amount": 10000
+}
+
+### 13. Histori transaksi Andi: halaman 1, 5 data per halaman
+GET {{host}}/api/v1/users/1/transactions?page=1&pageSize=5
+
+### 14. Histori transaksi: filter + search + sorting
+GET {{host}}/api/v1/users/1/transactions?type=TRANSFER&status=SUCCESS&direction=OUT&search=TRF&sortBy=amount&sortDir=asc&dateFrom=2026-11-01&dateTo=2026-12-31
+
+### 15. Histori mutasi Andi (saldo sebelum / sesudah)
+GET {{host}}/api/v1/users/1/mutations?page=1&pageSize=10
+
+### 16. Histori mutasi: hanya IN
+GET {{host}}/api/v1/users/1/mutations?direction=IN&sortBy=createdAt&sortDir=desc
+
+### 17. Pagination tidak valid -> 400
+GET {{host}}/api/v1/users/1/transactions?page=0&pageSize=500
+
+### 18. Audit logs terbaru
+GET {{host}}/api/v1/audit-logs?page=1&pageSize=20
+
+
+################################################################
+### UJI CONCURRENCY (RowVersion) - buat dua top up untuk wallet yang sama
+################################################################
+
+### A. Top up pertama Citra (catat id = X)
+POST {{host}}/api/v1/wallets/3/topups
+Content-Type: application/json
+
+{ "amount": 10000, "paymentMethodCode": "QRIS" }
+
+### B. Top up kedua Citra (catat id = Y)
+POST {{host}}/api/v1/wallets/3/topups
+Content-Type: application/json
+
+{ "amount": 20000, "paymentMethodCode": "QRIS" }
+
+### C. Konfirmasi X dengan jeda 10 detik (JALANKAN INI DULU, jangan ditunggu)
+POST {{host}}/api/v1/topups/X/confirm?delayMs=10000
+
+### D. Dalam 10 detik itu, konfirmasi Y tanpa jeda -> berhasil 200
+POST {{host}}/api/v1/topups/Y/confirm
+
+### Hasil C: 409 Conflict (wallet sudah diubah oleh D). Cek: top up X tetap PENDING, tidak ada mutasi/audit untuk X.
+GET {{host}}/api/v1/users/3/transactions?type=TOPUP
