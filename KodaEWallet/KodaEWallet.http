@@ -1,16 +1,12 @@
-### Koda E-Wallet Weekly 6 - REST Client (VS Code extension "REST Client")
-### Data seed (database baru): user Id 1-10 (Andi..Joko), wallet WAL001..WAL010,
-### top up PENDING milik Fitri (user 6) = TopUpRequestId 5.
+@host = http://localhost:5055
 
-@host = http://localhost:5063
+### get method payment
+GET {{host}}/api/v1/paymentMethods
 
-### 1. Metode pembayaran aktif
-GET {{host}}/api/v1/payment-methods
+### info wallet
+GET {{host}}/api/v1/wallets/5
 
-### 2. Info wallet Andi (saldo awal seed Rp800.000)
-GET {{host}}/api/v1/wallets/1
-
-### 3. Buat user baru -> wallet ACTIVE saldo 0 otomatis
+### post new user
 POST {{host}}/api/v1/users
 Content-Type: application/json
 
@@ -21,7 +17,7 @@ Content-Type: application/json
 	"phone": "081200000011"
 }
 
-### 4. Buat user duplikat (username/email/phone sama) -> 409
+### post a duplicate user
 POST {{host}}/api/v1/users
 Content-Type: application/json
 
@@ -32,26 +28,26 @@ Content-Type: application/json
 	"phone": "081200000099"
 }
 
-### 5. Ajukan top up Andi -> PENDING, saldo belum berubah (catat topUpRequestId)
-POST {{host}}/api/v1/wallets/1/topups
+### post request top up
+POST {{host}}/api/v1/wallets/5/topups
 Content-Type: application/json
 
 {
-	"amount": 100000,
+	"amount": 50000,
 	"paymentMethodCode": "BANK_TRANSFER",
 	"description": "Top up uji"
 }
 
-### 6. Saldo Andi masih sama (belum berubah)
-GET {{host}}/api/v1/wallets/1
+### get check balance before confirm
+GET {{host}}/api/v1/wallets/5
 
-### 7. Konfirmasi pembayaran (ganti 5 dengan topUpRequestId dari langkah 5) -> PAID/SUCCESS, saldo naik
+### post confirm top up
 POST {{host}}/api/v1/topups/5/confirm
 
-### 8. Konfirmasi ulang top up yang sama -> 409 (tidak boleh diproses ulang)
+### post confirm double 
 POST {{host}}/api/v1/topups/5/confirm
 
-### 9. Transfer Andi -> Budi (WAL002) berhasil
+### post transfer
 POST {{host}}/api/v1/transfers
 Content-Type: application/json
 
@@ -62,7 +58,7 @@ Content-Type: application/json
 	"description": "Uji transfer"
 }
 
-### 10. Transfer melebihi saldo -> 422 + audit TRANSFER_REJECTED, saldo tidak berubah (ROLLBACK / ditolak)
+### post amount < balance (rollback)
 POST {{host}}/api/v1/transfers
 Content-Type: application/json
 
@@ -73,7 +69,7 @@ Content-Type: application/json
 	"description": "Terlalu besar"
 }
 
-### 11. Transfer ke wallet tidak ada -> 404 + audit REJECTED
+### post transfer not found wallet
 POST {{host}}/api/v1/transfers
 Content-Type: application/json
 
@@ -83,7 +79,7 @@ Content-Type: application/json
 	"amount": 10000
 }
 
-### 12. Transfer ke diri sendiri -> 400 + audit REJECTED
+### post transfer on his own wallet
 POST {{host}}/api/v1/transfers
 Content-Type: application/json
 
@@ -93,46 +89,41 @@ Content-Type: application/json
 	"amount": 10000
 }
 
-### 13. Histori transaksi Andi: halaman 1, 5 data per halaman
-GET {{host}}/api/v1/users/1/transactions?page=1&pageSize=5
+### get history transaction pagination
+GET {{host}}/api/v1/users/5/transactions?page=1&pageSize=5
 
-### 14. Histori transaksi: filter + search + sorting
+### get history transaction filter search sorting
 GET {{host}}/api/v1/users/1/transactions?type=TRANSFER&status=SUCCESS&direction=OUT&search=TRF&sortBy=amount&sortDir=asc&dateFrom=2026-11-01&dateTo=2026-12-31
 
-### 15. Histori mutasi Andi (saldo sebelum / sesudah)
+### get history mutation user in and out
 GET {{host}}/api/v1/users/1/mutations?page=1&pageSize=10
 
-### 16. Histori mutasi: hanya IN
-GET {{host}}/api/v1/users/1/mutations?direction=IN&sortBy=createdAt&sortDir=desc
+### get history mutation only IN
+GET {{host}}/api/v1/users/5/mutations?direction=IN&sortBy=createdAt&sortDir=desc
 
-### 17. Pagination tidak valid -> 400
+### get pagination invalid (400)
 GET {{host}}/api/v1/users/1/transactions?page=0&pageSize=500
 
-### 18. Audit logs terbaru
+### get new auditlogs
 GET {{host}}/api/v1/audit-logs?page=1&pageSize=20
 
-
-################################################################
-### UJI CONCURRENCY (RowVersion) - buat dua top up untuk wallet yang sama
-################################################################
-
-### A. Top up pertama Citra (catat id = X)
-POST {{host}}/api/v1/wallets/3/topups
+### first topup request
+POST {{host}}/api/v1/wallets/5/topups
 Content-Type: application/json
 
-{ "amount": 10000, "paymentMethodCode": "QRIS" }
+{ "amount": 1000, "paymentMethodCode": "QRIS" }
 
-### B. Top up kedua Citra (catat id = Y)
-POST {{host}}/api/v1/wallets/3/topups
+### second topup request
+POST {{host}}/api/v1/wallets/5/topups
 Content-Type: application/json
 
-{ "amount": 20000, "paymentMethodCode": "QRIS" }
+{ "amount": 2000, "paymentMethodCode": "QRIS" }
 
-### C. Konfirmasi X dengan jeda 10 detik (JALANKAN INI DULU, jangan ditunggu)
-POST {{host}}/api/v1/topups/X/confirm?delayMs=10000
+### confirm with delay (C)
+POST {{host}}/api/v1/topups/5/confirm?delayMs=10000
 
-### D. Dalam 10 detik itu, konfirmasi Y tanpa jeda -> berhasil 200
-POST {{host}}/api/v1/topups/Y/confirm
+### confirm without delay -> success 200
+POST {{host}}/api/v1/topups/5/confirm
 
-### Hasil C: 409 Conflict (wallet sudah diubah oleh D). Cek: top up X tetap PENDING, tidak ada mutasi/audit untuk X.
-GET {{host}}/api/v1/users/3/transactions?type=TOPUP
+### result C: 409 Conflict 
+GET {{host}}/api/v1/users/5/transactions?type=TOPUP

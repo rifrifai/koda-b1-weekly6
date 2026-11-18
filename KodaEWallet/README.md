@@ -208,10 +208,11 @@ Isi kolom hasil setelah menjalankan `requests.http` / Swagger, lalu tempel scree
 
 ## Screenshot
 
-- Scalar / API testing
-- Saldo sebelum dan sesudah transaksi
-- Histori mutasi
-- Audit logs
-- Rollback
-- Concurrency (409)
-- Pagination
+- [Scalar / API testing](screenshots/scalar.png)
+- [Saldo sebelum transaksi](screenshots/before-transfer.png)
+- [Saldo sesudah transaksi](screenshots/after-transfer.png)
+- [Histori mutasi](screenshots/history-muitasi.png)
+- [Audit logs](screenshots/audit-logs.png)
+- [Rollback](screenshots/rollback.png)
+- [Concurrency](screenshots/concurrency.png)
+- [Pagination](screenshots/pagination.png)
