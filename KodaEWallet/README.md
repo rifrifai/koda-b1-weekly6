@@ -175,33 +175,14 @@ Parameter histori: `search` (ReferenceNo), `type` (TOPUP/TRANSFER), `status` (PE
 
 Status code (format ProblemDetails dari `GlobalExceptionHandler`):
 
-| Kasus | Status |
-|---|---|
-| Input tidak valid, transfer ke diri sendiri, wallet tidak ACTIVE | 400 |
-| User / wallet / top up / metode pembayaran tidak ditemukan | 404 |
-| Username/email/telepon duplikat, top up sudah diproses, konflik RowVersion | 409 |
-| Saldo tidak mencukupi | 422 |
-| Error server / database | 500 |
-
 ## Perbedaan Transactions, WalletMutations, AuditLogs
 
-| Tabel | Menjawab pertanyaan | Isi |
+| Tabel | Menjawab | Perbedaanya |
 |---|---|---|
-| **Transactions** | "Apa yang terjadi?" | Satu baris per peristiwa uang (top up atau transfer): referensi, pengirim, penerima, nominal, status. |
-| **WalletMutations** | "Bagaimana saldo setiap wallet berubah?" | Satu baris per wallet yang terdampak, dengan saldo sebelum dan sesudah. Transfer = 2 baris (OUT dan IN), top up = 1 baris (IN). |
-| **AuditLogs** | "Siapa melakukan apa dan apa hasilnya?" | Jejak aktivitas, **termasuk yang ditolak** (REJECTED) dan tidak pernah menjadi Transaction. Tidak menyimpan data sensitif. |
+| Transactions | "Apa yang terjadi?" | Satu baris per peristiwa uang (top up atau transfer): referensi, pengirim, penerima, nominal, status. |
+| WalletMutations | "Bagaimana saldo setiap wallet berubah?" | Satu baris per wallet yang terdampak, dengan saldo sebelum dan sesudah. Transfer = 2 baris (OUT dan IN), top up = 1 baris (IN). |
+| AuditLogs | "Siapa melakukan apa dan apa hasilnya?" | Jejak aktivitas, termasuk yang ditolak (REJECTED) dan tidak pernah menjadi Transaction. Tidak menyimpan data sensitif. |
 
-## Alasan Teknis
-
-- AsNoTracking: query baca-saja (histori, info wallet, daftar) tidak akan diubah, jadi EF tidak perlu memantau
-  perubahannya. Hasilnya lebih ringan dan cepat. Query yang akan mengubah saldo sengaja tetap memakai tracking.
-- Database transaction: top up dikonfirmasi dan transfer mengubah beberapa tabel sekaligus (saldo, status, mutasi, audit).
-  Dibungkus satu transaksi agar berhasil semua atau batal semua, tidak ada saldo berubah tanpa mutasi.
-  Pembuatan user + wallet juga begitu: tanpa transaksi bisa ada user tanpa wallet.
-- **RowVersion**: kolom ROWVERSION di Wallets berubah otomatis setiap baris diubah. Saat menyimpan, EF menulis
-  `UPDATE ... WHERE Id = @id AND RowVersion = @versiLama`. Jika wallet sudah diubah proses lain, baris tidak cocok,
-  EF melempar `DbUpdateConcurrencyException`, transaksi dibatalkan, dan API menjawab 409. Ini mencegah saldo
-  tertimpa (lost update) tanpa mengunci tabel.
 
 ## Hasil Testing
 
@@ -227,7 +208,7 @@ Isi kolom hasil setelah menjalankan `requests.http` / Swagger, lalu tempel scree
 
 ## Screenshot
 
-- **Scalar** / API testing
+- Scalar / API testing
 - Saldo sebelum dan sesudah transaksi
 - Histori mutasi
 - Audit logs
